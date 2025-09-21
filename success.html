@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Postcard Sent!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800 flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl text-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-green-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h1 class="text-2xl font-bold text-[#0E0B3D] mb-2">Success!</h1>
+        <p class="text-gray-600 mb-6">Hope you're having a great holiday.</p>
+        <a href="/?sendAgain=true" class="w-full inline-block text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md mb-6" style="background-color: #0f61e6;">
+            Send again, to someone else?
+        </a>
+        
+        <p class="text-gray-600">Luxury Cruise Holidays in 2026 - Sale extended to 22nd September</p>
+        <a href="https://www.sixstarcruises.co.uk/" target="_blank">
+            <img src="sixstars.png" alt="Six Starrt Cruises Logo" class="mx-auto mt-2">
+        </a>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // The logic to trigger the confirmation email has been moved to the server-side
+            // verify-and-send.js function. This page is now purely for display.
+        });
+    </script>
+</body>
+</html>
