@@ -33,7 +33,7 @@ export default async function handler(request, response) {
                 <h2>Hi ${sender.name},</h2>
                 <p>To send ${recipient.name}'s postcard, click below:</p>
                 <div style="margin: 20px 0;">
-                    <a href="${verificationUrl}" style="background-color: #0f61e6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Send Postcard</a>
+                    <a href="${verificationUrl}" style="background-color: #b9965b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Send Postcard</a>
                 </div>
                 <div style="margin-top: 20px;">
                     <img src="${frontImageUrl}" alt="Postcard Front" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
@@ -46,7 +46,7 @@ export default async function handler(request, response) {
             to: sender.email,
             from: {
                 email: process.env.SENDGRID_FROM_EMAIL,
-                name: "Jet2"
+                name: "SixStarCuises"
             },
             subject: `Send ${recipient.name}'s Postcard`,
             html: emailHtml,
