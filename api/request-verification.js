@@ -21,20 +21,12 @@ export default async function handler(request, response) {
             return response.status(400).json({ success: false, message: 'Missing required data.' });
         }
 
-        const { sender, recipient, frontImageUrl, backImageUrlWithAddress, isPortrait } = postcardData;
+        const { sender, recipient, frontImageUrlForEmail, backImageUrlWithAddress } = postcardData;
 
         // Create a short-lived token containing the postcard data
         const token = jwt.sign(postcardData, jwtSecret, { expiresIn: '1h' });
 
         const verificationUrl = `https://${request.headers.host}/api/verify-and-send?token=${token}`;
-
-        // Conditionally apply a rotation style for portrait images
-        const frontImageStyle = `
-            max-width: 200px; 
-            border: 1px solid #ccc; 
-            margin: 5px;
-            ${isPortrait ? 'transform: rotate(90deg);' : ''}
-        `;
 
         const emailHtml = `
             <div style="font-family: sans-serif; line-height: 1.6; text-align: center; max-width: 500px; margin: auto;">
@@ -44,7 +36,7 @@ export default async function handler(request, response) {
                     <a href="${verificationUrl}" style="background-color: #b9965b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Send Postcard</a>
                 </div>
                 <div style="margin-top: 20px; display: flex; justify-content: center; align-items: center;">
-                    <img src="${frontImageUrl}" alt="Postcard Front" style="${frontImageStyle.trim()}"/>
+                    <img src="${frontImageUrlForEmail}" alt="Postcard Front" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
                     <img src="${backImageUrlWithAddress}" alt="Postcard Back" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
                 </div>
             </div>
@@ -69,3 +61,4 @@ export default async function handler(request, response) {
         return response.status(500).json({ success: false, message: 'Failed to send verification email.' });
     }
 }
+
