@@ -109,7 +109,7 @@ export default async function handler(request, response) {
             to: sender.email,
             from: {
                 email: process.env.SENDGRID_FROM_EMAIL,
-                name: "Jet2"
+                name: "SixStarCruises"
             },
             subject: 'Your Postcard Confirmation',
             html: emailHtml,
