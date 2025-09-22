@@ -14,6 +14,11 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+        /* START: Enforce A5 aspect ratio for previews */
+        #final-preview-front-container, #final-preview-back-container {
+            aspect-ratio: 210 / 148;
+        }
+        /* END: Enforce A5 aspect ratio for previews */
         .accordion-content {
             max-height: 0;
             overflow: hidden;
@@ -97,7 +102,11 @@
                     <div id="preview-container" class="relative w-full aspect-[210/148] rounded-lg shadow-[6px_6px_15px_rgba(0,0,0,0.3)] flex items-center justify-center text-center transition-all duration-300 hidden">
                         <canvas id="preview-canvas" class="rounded-lg"></canvas>
                         <div id="image-controls" class="absolute top-2 right-2 flex gap-2 hidden">
-                            <button id="delete-image-btn" class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1 px-2 rounded-md">Delete</button>
+                            <button id="delete-image-btn" class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-md w-8 h-8 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
                         </div>
                         <div id="zoom-controls" class="absolute bottom-2 right-2 flex flex-col gap-1">
                             <button id="zoom-in-btn" class="w-8 h-8 flex items-center justify-center bg-black bg-opacity-50 hover:bg-opacity-75 text-white font-bold rounded-full text-lg">+</button>
@@ -196,13 +205,13 @@
                     <div class="flex flex-col sm:flex-row gap-4 justify-center">
                         <div class="w-full sm:w-1/2">
                             <h4 class="text-center font-semibold mb-2">Front Preview</h4>
-                            <div id="final-preview-front-container" class="aspect-[210/148] bg-gray-200 rounded-lg shadow-md relative">
+                            <div id="final-preview-front-container" class="aspect-[210/148] bg-white rounded-lg shadow-md relative">
                                 <img id="final-preview-front" class="w-full h-full object-cover rounded-lg cursor-pointer">
                             </div>
                         </div>
                         <div class="w-full sm:w-1/2">
                             <h4 class="text-center font-semibold mb-2">Back Preview</h4>
-                             <div class="aspect-[210/148] bg-gray-200 rounded-lg shadow-md relative"><img id="final-preview-back" class="w-full h-full object-cover rounded-lg cursor-pointer"></div>
+                             <div id="final-preview-back-container" class="aspect-[210/148] bg-white rounded-lg shadow-md relative"><img id="final-preview-back" class="w-full h-full object-cover rounded-lg cursor-pointer"></div>
                         </div>
                     </div>
                     <button id="send-postcard-btn" class="w-full mt-6 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md flex items-center justify-center gap-2" style="background-color: #212529;"><span class="btn-text">Send Postcard</span></button>
@@ -268,7 +277,7 @@
         // --- APPLICATION STATE ---
         const appState = { 
             uploadedImage: null,
-            imageSrcForResend: null, // Stores the original src for the "Send Again" feature
+            imageSrcForResend: null,
             imageOffsetX: 0,
             imageOffsetY: 0,
             imageZoom: 1.0,
@@ -343,8 +352,6 @@
         };
 
         // --- CORE LOGIC ---
-        // All function definitions are included below and are identical to the stable version you provided.
-        // This ensures all features like accordion expansion, Masonry layout, and image manipulation will work correctly.
         
         async function checkForProfanityAPI(text, warningElement) {
             if (!text.trim()) {
@@ -359,7 +366,7 @@
                 });
                 if (!response.ok) {
                     console.warn("Profanity check failed, allowing submission.");
-                    return false; // Fail open
+                    return false; 
                 }
                 const result = await response.json();
                 if (result.isProfanity) {
@@ -373,15 +380,47 @@
             } catch (error) {
                 console.warn("Could not reach profanity API, allowing submission.", error);
                 warningElement.classList.add('hidden');
-                return false; // Fail open if API is down
+                return false; 
             }
+        }
+        
+        function drawCoverImage(ctx, img, canvasWidth, canvasHeight, offsetX, offsetY, zoom) {
+            const canvasAspect = canvasWidth / canvasHeight;
+            const imgAspect = img.width / img.height;
+
+            let sWidth, sHeight;
+
+            if (imgAspect > canvasAspect) {
+                sHeight = img.height;
+                sWidth = sHeight * canvasAspect;
+            } else {
+                sWidth = img.width;
+                sHeight = sWidth / canvasAspect;
+            }
+
+            sWidth /= zoom;
+            sHeight /= zoom;
+
+            let sx = (img.width - sWidth) / 2;
+            let sy = (img.height - sHeight) / 2;
+
+            const panScaleFactor = sWidth / canvasWidth;
+            sx -= offsetX * panScaleFactor;
+            sy -= offsetY * panScaleFactor;
+            
+            const maxSx = img.width - sWidth;
+            const maxSy = img.height - sHeight;
+            sx = Math.max(0, Math.min(sx, maxSx));
+            sy = Math.max(0, Math.min(sy, maxSy));
+
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvasWidth, canvasHeight);
         }
 
         function drawCleanFrontOnContext(ctx, width, height, scaleFactor) {
             if (appState.uploadedImage) {
                 const scaledOffsetX = appState.imageOffsetX * scaleFactor;
                 const scaledOffsetY = appState.imageOffsetY * scaleFactor;
-                drawCoverImage(ctx, appState.uploadedImage, 0, 0, width, height, scaledOffsetX, scaledOffsetY, appState.imageZoom);
+                drawCoverImage(ctx, appState.uploadedImage, width, height, scaledOffsetX, scaledOffsetY, appState.imageZoom);
             }
             
             if (appState.frontText.text) {
@@ -390,7 +429,11 @@
                 ctx.fillStyle = color;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.translate(x * scaleFactor, y * scaleFactor);
+                
+                const textX = appState.isPortrait ? x * (height / dom.previewCanvas.el.height) : x * scaleFactor;
+                const textY = appState.isPortrait ? y * (width / dom.previewCanvas.el.width) : y * scaleFactor;
+
+                ctx.translate(textX, textY);
                 ctx.rotate(rotation * Math.PI / 180);
                 drawWrappedText(ctx, text, 0, 0, textWidth * scaleFactor, size * scaleFactor * 1.2, `${size * scaleFactor}px ${font}`);
                 ctx.restore();
@@ -403,7 +446,7 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (appState.uploadedImage) {
-                drawCoverImage(ctx, appState.uploadedImage, 0, 0, canvas.width, canvas.height, appState.imageOffsetX, appState.imageOffsetY, appState.imageZoom);
+                drawCoverImage(ctx, appState.uploadedImage, canvas.width, canvas.height, appState.imageOffsetX, appState.imageOffsetY, appState.imageZoom);
             }
 
             if (appState.frontText.text) {
@@ -597,7 +640,7 @@
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.8)); // Compress to 80% quality
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
                 };
                 img.onerror = (error) => {
                     console.error("Error loading image for resizing:", error);
@@ -606,10 +649,36 @@
             });
         }
         
+        function updatePostcardLayout() {
+            const canvas = dom.previewCanvas.el;
+            const container = dom.previewContainer;
+            
+            container.classList.remove('aspect-[210/148]', 'aspect-[148/210]');
+
+            if (appState.isPortrait) {
+                container.classList.add('aspect-[148/210]');
+            } else {
+                container.classList.add('aspect-[210/148]');
+            }
+
+            requestAnimationFrame(() => {
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientHeight;
+                drawPreviewCanvas();
+                debouncedUpdateAllPreviews();
+            });
+        }
+
+        function resetImagePanAndZoom() {
+            appState.imageOffsetX = 0;
+            appState.imageOffsetY = 0;
+            appState.imageZoom = 1.0;
+        }
+
         async function validateAndSetImage(src) {
              const tempImage = new Image();
              await new Promise((resolve, reject) => { 
-                tempImage.crossOrigin = "Anonymous"; // Important for tainted canvas
+                tempImage.crossOrigin = "Anonymous";
                 tempImage.onload = resolve; 
                 tempImage.onerror = reject; 
                 tempImage.src = src; 
@@ -623,32 +692,17 @@
             } else {
                 dom.imageWarning.classList.add('hidden');
                 appState.uploadedImage = tempImage;
-                appState.imageSrcForResend = src; // Save the src for "Send Again"
+                appState.imageSrcForResend = src;
+                
                 appState.isPortrait = tempImage.height > tempImage.width;
-                
-                const canvas = dom.previewCanvas.el;
-                const container = dom.previewContainer;
-                
-                // Forcefully remove both classes to ensure a clean slate
-                container.classList.remove('aspect-[210/148]', 'aspect-[148/210]');
-
-                if(appState.isPortrait) {
-                    container.classList.add('aspect-[148/210]');
-                } else {
-                    container.classList.add('aspect-[210/148]');
-                }
+                resetImagePanAndZoom();
 
                 dom.imagePlaceholder.classList.add('hidden');
-                container.classList.remove('hidden');
+                dom.previewContainer.classList.remove('hidden');
                 dom.imageControls.classList.remove('hidden');
                 dom.ticks.one.classList.remove('hidden');
-
-                requestAnimationFrame(() => {
-                    canvas.width = container.clientWidth;
-                    canvas.height = container.clientHeight;
-                    drawPreviewCanvas();
-                    debouncedUpdateAllPreviews();
-                });
+                
+                updatePostcardLayout();
             }
         }
         
@@ -656,13 +710,19 @@
             appState.uploadedImage = null;
             appState.imageSrcForResend = null;
             appState.isPortrait = false;
-            appState.imageOffsetX = 0;
-            appState.imageOffsetY = 0;
-            appState.imageZoom = 1.0;
+            resetImagePanAndZoom();
+            
+            // Reset front text when image is deleted
+            appState.frontText.text = '';
+            appState.frontText.x = null;
+            appState.frontText.y = null;
+            dom.frontText.input.value = '';
+            dom.frontText.profanityWarning.classList.add('hidden');
+            dom.ticks.two.classList.add('hidden');
+            dom.noThanksTextBtn.classList.remove('opacity-0', 'pointer-events-none');
             
             const container = dom.previewContainer;
             container.classList.add('hidden');
-            // Ensure container is reset to default landscape on reset
             container.classList.remove('aspect-[148/210]');
             container.classList.add('aspect-[210/148]');
             
@@ -717,51 +777,42 @@
                 dom.messageWarning.classList.add('hidden');
             }
         }
-        function drawCoverImage(ctx, img, x, y, w, h, pixelOffsetX = 0, pixelOffsetY = 0, zoom = 1.0) {
-            const sWidth = img.width / zoom;
-            const sHeight = img.height / zoom;
-            let sx = (img.width - sWidth) / 2;
-            let sy = (img.height - sHeight) / 2;
-
-            const imageToCanvasScale = w / sWidth;
-
-            const maxPixelOffsetX = (img.width - sWidth) / 2 * imageToCanvasScale;
-            const maxPixelOffsetY = (img.height - sHeight) / 2 * imageToCanvasScale;
-
-            const clampedOffsetX = Math.max(-maxPixelOffsetX, Math.min(maxPixelOffsetX, pixelOffsetX));
-            const clampedOffsetY = Math.max(-maxPixelOffsetY, Math.min(maxPixelOffsetY, pixelOffsetY));
-
-            sx -= clampedOffsetX / imageToCanvasScale;
-            sy -= clampedOffsetY / imageToCanvasScale;
-
-            ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, w, h);
-        }
-
+        
         async function generatePostcardImages({ includeAddressOnImage = true, forPrint = false } = {}) {
             await document.fonts.ready; 
 
             const MM_TO_INCH = 25.4;
-            const finalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
-            const finalHeightPx = Math.round((config.a5HeightMM / MM_TO_INCH) * config.printDPI);
+            
+            let isFinalPortraitForCanvas = appState.isPortrait;
+            // For the UI/email preview, if the image is portrait, we want to render it on a landscape canvas.
+            if (!forPrint && appState.isPortrait) {
+                isFinalPortraitForCanvas = false;
+            }
+
+            const finalWidthPx = Math.round((isFinalPortraitForCanvas ? config.a5HeightMM : config.a5WidthMM) / MM_TO_INCH) * config.printDPI;
+            const finalHeightPx = Math.round((isFinalPortraitForCanvas ? config.a5WidthMM : config.a5HeightMM) / MM_TO_INCH) * config.printDPI;
 
             const frontCanvas = document.createElement('canvas');
             frontCanvas.width = finalWidthPx;
             frontCanvas.height = finalHeightPx;
-
             const frontCtx = frontCanvas.getContext('2d');
             
             if (appState.uploadedImage) {
-                const scaleFactor = finalWidthPx / dom.previewCanvas.el.width;
-                 if (appState.isPortrait && forPrint) {
+                // If this is a preview for a portrait image, rotate the context to draw it landscape.
+                if (!forPrint && appState.isPortrait) {
                     frontCtx.save();
                     frontCtx.translate(finalWidthPx / 2, finalHeightPx / 2);
                     frontCtx.rotate(90 * Math.PI / 180);
-                    frontCtx.translate(-finalHeightPx / 2, -finalWidthPx / 2);
+                    frontCtx.translate(-finalHeightPx / 2, -finalWidthPx / 2); // new center is based on swapped dimensions
+                    
+                    const scaleFactor = finalHeightPx / dom.previewCanvas.el.height;
                     drawCleanFrontOnContext(frontCtx, finalHeightPx, finalWidthPx, scaleFactor);
+
                     frontCtx.restore();
-                 } else {
+                } else { // Original logic for landscape images or forPrint=true
+                    const scaleFactor = finalWidthPx / (appState.isPortrait ? dom.previewCanvas.el.height : dom.previewCanvas.el.width);
                     drawCleanFrontOnContext(frontCtx, finalWidthPx, finalHeightPx, scaleFactor);
-                 }
+                }
             } else {
                 frontCtx.fillStyle = '#6b7280'; 
                 frontCtx.font = '80px Inter';
@@ -769,28 +820,31 @@
                 frontCtx.fillText('Waiting for your masterpiece..', finalWidthPx / 2, finalHeightPx / 2);
             }
 
+            const backFinalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
+            const backFinalHeightPx = Math.round((config.a5HeightMM / MM_TO_INCH) * config.printDPI);
+            
             const backCanvas = document.createElement('canvas');
-            backCanvas.width = finalWidthPx; backCanvas.height = finalHeightPx;
+            backCanvas.width = backFinalWidthPx; backCanvas.height = backFinalHeightPx;
             const backCtx = backCanvas.getContext('2d');
             backCtx.fillStyle = 'white';
-            backCtx.fillRect(0, 0, finalWidthPx, finalHeightPx);
+            backCtx.fillRect(0, 0, backFinalWidthPx, backFinalHeightPx);
             
             backCtx.strokeStyle = '#e5e7eb';
             backCtx.lineWidth = 5;
             backCtx.beginPath();
-            backCtx.moveTo(finalWidthPx / 2, 50);
-            backCtx.lineTo(finalWidthPx / 2, finalHeightPx - 50);
+            backCtx.moveTo(backFinalWidthPx / 2, 50);
+            backCtx.lineTo(backFinalWidthPx / 2, backFinalHeightPx - 50);
             backCtx.stroke();
 
             backCtx.strokeStyle = '#cccccc';
             backCtx.lineWidth = 5;
             backCtx.setLineDash([15, 15]);
-            backCtx.strokeRect(finalWidthPx - 300, 50, 250, 250);
+            backCtx.strokeRect(backFinalWidthPx - 300, 50, 250, 250);
             backCtx.setLineDash([]);
             
             const fontSize = dom.fontSizeSlider.value;
             const fontWeight = dom.fontWeightSlider.value;
-            const hiResFontSize = fontSize * (finalWidthPx / 504) * 1.2;
+            const hiResFontSize = fontSize * (backFinalWidthPx / 504) * 1.2;
             const fontFamily = dom.fontSelect.value;
             backCtx.fillStyle = dom.colorPicker.value;
             backCtx.font = `${fontWeight} ${hiResFontSize}px ${fontFamily}`;
@@ -801,7 +855,7 @@
             const lines = messageText.split('\n');
             const messageX = 50;
             let messageY = hiResFontSize * 1.2;
-            const messageMaxWidth = (finalWidthPx / 2) - 100;
+            const messageMaxWidth = (backFinalWidthPx / 2) - 100;
             const lineHeight = hiResFontSize * 1.2;
 
             lines.forEach(line => {
@@ -823,15 +877,15 @@
             });
             
             if (includeAddressOnImage) {
-                const hiResAddressFontSize = 12 * (finalWidthPx / 504) * 1.2;
+                const hiResAddressFontSize = 12 * (backFinalWidthPx / 504) * 1.2;
                 backCtx.fillStyle = '#333';
                 backCtx.font = `400 ${hiResAddressFontSize}px Inter`;
                 backCtx.textAlign = 'left';
                 
                 const addressLines = [dom.addressInputs.name.value, dom.addressInputs.line1.value, dom.addressInputs.line2.value, dom.addressInputs.city.value, dom.addressInputs.postcode.value].filter(Boolean);
                 const addressBlockHeight = addressLines.length * hiResAddressFontSize * 1.4;
-                const addressX = (finalWidthPx / 2) + 65; 
-                let addressY = (finalHeightPx / 2) - (addressBlockHeight / 2);
+                const addressX = (backFinalWidthPx / 2) + 65; 
+                let addressY = (backFinalHeightPx / 2) - (addressBlockHeight / 2);
 
                 addressLines.forEach(line => {
                     backCtx.fillText(line, addressX, addressY);
@@ -844,15 +898,6 @@
         async function updateFinalPreviews() {
             const { frontCanvas, backCanvas } = await generatePostcardImages({includeAddressOnImage: true});
             
-            const frontPreviewContainer = dom.finalPreviewFrontContainer;
-            if (appState.isPortrait) {
-                frontPreviewContainer.classList.remove('aspect-[210/148]');
-                frontPreviewContainer.classList.add('aspect-[148/210]');
-            } else {
-                frontPreviewContainer.classList.remove('aspect-[148/210]');
-                frontPreviewContainer.classList.add('aspect-[210/148]');
-            }
-
             frontCanvas.toBlob(blob => {
                 if (dom.finalPreviewFront.src) URL.revokeObjectURL(dom.finalPreviewFront.src);
                 dom.finalPreviewFront.src = URL.createObjectURL(blob);
@@ -966,7 +1011,6 @@
                 return;
             }
         
-            // Save sender details to localStorage
             localStorage.setItem('senderName', senderName);
             localStorage.setItem('senderEmail', senderEmail);
         
@@ -1013,9 +1057,9 @@
                     recipient[key] = dom.addressInputs[key].value;
                 }
                 
-                 // Save the design for the "Send Again" feature
                 const resendData = {
                     imageSrc: appState.imageSrcForResend,
+                    isPortrait: appState.isPortrait,
                     frontText: appState.frontText,
                     message: {
                         text: dom.textInput.value,
@@ -1081,7 +1125,7 @@
                 config.pixabayApiKey = serverConfig.pixabayApiKey;
             } catch (error) {
                 console.warn(`Could not fetch server configuration: ${error.message}. This is expected in a local or preview environment. Ensure environment variables are set correctly on your Vercel deployment.`);
-                config.recaptchaSiteKey = '6LeIxAcpAAAAAApp-c-tM8_i21013-10203040'; // A dummy key to prevent crashes in preview.
+                config.recaptchaSiteKey = '6LeIxAcpAAAAAApp-c-tM8_i21013-10203040';
                 config.pixabayApiKey = 'YOUR_PIXABAY_API_KEY';
             }
         }
@@ -1109,6 +1153,7 @@
                     dom.fontWeightValue.textContent = lastDesign.message.weight;
 
                     appState.frontText = lastDesign.frontText;
+                    appState.isPortrait = lastDesign.isPortrait || false;
                     
                     validateAndSetImage(lastDesign.imageSrc);
 
@@ -1138,9 +1183,7 @@
                 };
                 reader.readAsDataURL(file);
             });
-            dom.deleteImageBtn.addEventListener('click', () => {
-                window.location.href = window.location.pathname;
-            });
+            dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
             
             dom.zoomInBtn.addEventListener('click', () => {
                 appState.imageZoom += 0.1;
@@ -1294,7 +1337,6 @@
                     canvas.style.cursor = 'grabbing';
                     const dx = mouseX - startState.mouseX;
                     const dy = mouseY - startState.mouseY;
-
                     appState.imageOffsetX = startState.imageOffsetX + dx;
                     appState.imageOffsetY = startState.imageOffsetY + dy;
                 }
