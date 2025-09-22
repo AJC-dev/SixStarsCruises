@@ -1077,7 +1077,8 @@
                     frontImageUrl: frontBlobData.url,
                     backImageUrl: backPrintBlobData.url, 
                     backImageUrlWithAddress: backEmailBlobData.url,
-                    recaptchaToken: recaptchaToken
+                    recaptchaToken: recaptchaToken,
+                    isPortrait: appState.isPortrait // Add this line
                 };
                 
                 const verificationResponse = await fetch('/api/request-verification', {
