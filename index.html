@@ -1025,7 +1025,29 @@
                 const { frontCanvas, backCanvas: backCanvasForPrint } = await generatePostcardImages({ includeAddressOnImage: false, forPrint: true });
                 const { backCanvas: backCanvasForEmail } = await generatePostcardImages({ includeAddressOnImage: true });
 
+                // --- START: Create a landscape version of the front image for emails ---
+                const emailFrontCanvas = document.createElement('canvas');
+                const MM_TO_INCH = 25.4;
+                const emailWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
+                const emailHeightPx = Math.round((config.a5HeightMM / MM_TO_INCH) * config.printDPI);
+
+                emailFrontCanvas.width = emailWidthPx;
+                emailFrontCanvas.height = emailHeightPx;
+                const emailCtx = emailFrontCanvas.getContext('2d');
+                
+                if (appState.isPortrait) {
+                    emailCtx.save();
+                    emailCtx.translate(emailWidthPx / 2, emailHeightPx / 2);
+                    emailCtx.rotate(90 * Math.PI / 180);
+                    emailCtx.drawImage(frontCanvas, -frontCanvas.width / 2, -frontCanvas.height / 2);
+                    emailCtx.restore();
+                } else {
+                    emailCtx.drawImage(frontCanvas, 0, 0);
+                }
+                // --- END: Create a landscape version of the front image for emails ---
+
                 const frontBlob = await new Promise(resolve => frontCanvas.toBlob(resolve, 'image/jpeg', 0.9));
+                const frontBlobForEmail = await new Promise(resolve => emailFrontCanvas.toBlob(resolve, 'image/jpeg', 0.9));
                 const backBlobForPrint = await new Promise(resolve => backCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
                 const backBlobForEmail = await new Promise(resolve => backCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.9));
                 
@@ -1035,20 +1057,23 @@
                 const timestamp = Date.now();
 
                 const frontFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-front-${timestamp}.jpg`;
+                const frontEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-front-email-${timestamp}.jpg`;
                 const backPrintFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-print-${timestamp}.jpg`;
                 const backEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-email-${timestamp}.jpg`;
 
-                const [frontUploadResult, backPrintUploadResult, backEmailUploadResult] = await Promise.all([
+                const [frontUploadResult, frontEmailUploadResult, backPrintUploadResult, backEmailUploadResult] = await Promise.all([
                     fetch(`/api/upload?filename=${frontFilename}`, { method: 'POST', body: frontBlob }),
+                    fetch(`/api/upload?filename=${frontEmailFilename}`, { method: 'POST', body: frontBlobForEmail }),
                     fetch(`/api/upload?filename=${backPrintFilename}`, { method: 'POST', body: backBlobForPrint }),
                     fetch(`/api/upload?filename=${backEmailFilename}`, { method: 'POST', body: backBlobForEmail })
                 ]);
                 
                 const frontBlobData = await frontUploadResult.json();
+                const frontEmailBlobData = await frontEmailUploadResult.json();
                 const backPrintBlobData = await backPrintUploadResult.json();
                 const backEmailBlobData = await backEmailUploadResult.json();
 
-                if (!frontUploadResult.ok || !backPrintUploadResult.ok || !backEmailUploadResult.ok) {
+                if (!frontUploadResult.ok || !frontEmailUploadResult.ok || !backPrintUploadResult.ok || !backEmailUploadResult.ok) {
                     throw new Error('Failed to upload one or more images.');
                 }
 
@@ -1075,10 +1100,10 @@
                     sender: { name: senderName, email: senderEmail },
                     recipient: recipient,
                     frontImageUrl: frontBlobData.url,
+                    frontImageUrlForEmail: frontEmailBlobData.url,
                     backImageUrl: backPrintBlobData.url, 
                     backImageUrlWithAddress: backEmailBlobData.url,
-                    recaptchaToken: recaptchaToken,
-                    isPortrait: appState.isPortrait // Add this line
+                    recaptchaToken: recaptchaToken
                 };
                 
                 const verificationResponse = await fetch('/api/request-verification', {
