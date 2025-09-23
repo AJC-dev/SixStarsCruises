@@ -1096,7 +1096,7 @@
 
                 const recipient = {};
                 for (const key in dom.addressInputs) {
-                    recipient[key] = dom.addressInputs[key].value;
+                    recipient[key] = dom.addressInputs[key].value.trim();
                 }
                 
                 const resendData = {
@@ -1137,8 +1137,20 @@
                 dom.sender.checkEmailView.style.display = 'flex';
         
             } catch (error) {
-                console.error('Send failed:', error);
-                alert(`There was a problem sending your postcard: ${error.message}`);
+                console.error('An error occurred during the final send process:', error);
+
+                // --- START: Improved Error Handling ---
+                let userMessage = 'There was a problem sending your postcard. Please try again later.';
+                // Try to parse a more specific error message from the server response
+                if (error.message.includes('Failed to upload')) {
+                     userMessage = `There was a problem uploading your image. This can happen on an unstable connection. Please try again.`;
+                } else if (error.message.includes('verification email')) {
+                    userMessage = `Could not send the verification email. The service may be temporarily busy. Please try again in a few moments.`;
+                }
+
+                alert(userMessage);
+                // --- END: Improved Error Handling ---
+
                 btnText.style.display = 'inline';
                 loader.remove();
                 dom.sender.sendBtn.disabled = false;
@@ -1436,6 +1448,7 @@
                     debouncedUpdateAllPreviews();
                 });
             });
+
             const otherBackControls = [dom.colorPicker, ...Object.values(dom.addressInputs)];
             otherBackControls.forEach(el => {
                 el.addEventListener('input', () => {
