@@ -1022,19 +1022,19 @@
             dom.sender.sendBtn.disabled = true;
         
             try {
+                // Generate high-resolution images for printing
                 const { frontCanvas, backCanvas: backCanvasForPrint } = await generatePostcardImages({ includeAddressOnImage: false, forPrint: true });
-                const { backCanvas: backCanvasForEmail } = await generatePostcardImages({ includeAddressOnImage: true });
+                const { backCanvas: highResBackCanvasForEmail } = await generatePostcardImages({ includeAddressOnImage: true });
 
-                // --- START: Create a landscape version of the front image for emails ---
-                const emailFrontCanvas = document.createElement('canvas');
+                // Create a correctly rotated (if needed) high-res version of the front for email
+                const highResEmailFrontCanvas = document.createElement('canvas');
                 const MM_TO_INCH = 25.4;
                 const emailWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
                 const emailHeightPx = Math.round((config.a5HeightMM / MM_TO_INCH) * config.printDPI);
 
-                emailFrontCanvas.width = emailWidthPx;
-                emailFrontCanvas.height = emailHeightPx;
-                const emailCtx = emailFrontCanvas.getContext('2d');
-                
+                highResEmailFrontCanvas.width = emailWidthPx;
+                highResEmailFrontCanvas.height = emailHeightPx;
+                const emailCtx = highResEmailFrontCanvas.getContext('2d');
                 if (appState.isPortrait) {
                     emailCtx.save();
                     emailCtx.translate(emailWidthPx / 2, emailHeightPx / 2);
@@ -1044,12 +1044,29 @@
                 } else {
                     emailCtx.drawImage(frontCanvas, 0, 0);
                 }
-                // --- END: Create a landscape version of the front image for emails ---
 
+                // --- START: Create LOW-RESOLUTION versions for email ---
+                const createLowResCanvas = (sourceCanvas, maxWidth = 800) => {
+                    const scale = maxWidth / sourceCanvas.width;
+                    const newWidth = sourceCanvas.width * scale;
+                    const newHeight = sourceCanvas.height * scale;
+                    const lowResCanvas = document.createElement('canvas');
+                    lowResCanvas.width = newWidth;
+                    lowResCanvas.height = newHeight;
+                    const ctx = lowResCanvas.getContext('2d');
+                    ctx.drawImage(sourceCanvas, 0, 0, newWidth, newHeight);
+                    return lowResCanvas;
+                };
+
+                const lowResFrontCanvasForEmail = createLowResCanvas(highResEmailFrontCanvas);
+                const lowResBackCanvasForEmail = createLowResCanvas(highResBackCanvasForEmail);
+                // --- END: Create LOW-RESOLUTION versions for email ---
+
+                // Create blobs from all image versions
                 const frontBlob = await new Promise(resolve => frontCanvas.toBlob(resolve, 'image/jpeg', 0.9));
-                const frontBlobForEmail = await new Promise(resolve => emailFrontCanvas.toBlob(resolve, 'image/jpeg', 0.9));
+                const frontBlobForEmail = await new Promise(resolve => lowResFrontCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
                 const backBlobForPrint = await new Promise(resolve => backCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
-                const backBlobForEmail = await new Promise(resolve => backCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.9));
+                const backBlobForEmail = await new Promise(resolve => lowResBackCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
                 
                 const sanitizedEmail = senderEmail.replace(/[^a-z0-9]/gi, '-');
                 const sanitizedName = senderName.replace(/[^a-z0-9]/gi, '-');
@@ -1061,21 +1078,21 @@
                 const backPrintFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-print-${timestamp}.jpg`;
                 const backEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-email-${timestamp}.jpg`;
 
-                const [frontUploadResult, frontEmailUploadResult, backPrintUploadResult, backEmailUploadResult] = await Promise.all([
-                    fetch(`/api/upload?filename=${frontFilename}`, { method: 'POST', body: frontBlob }),
-                    fetch(`/api/upload?filename=${frontEmailFilename}`, { method: 'POST', body: frontBlobForEmail }),
-                    fetch(`/api/upload?filename=${backPrintFilename}`, { method: 'POST', body: backBlobForPrint }),
-                    fetch(`/api/upload?filename=${backEmailFilename}`, { method: 'POST', body: backBlobForEmail })
-                ]);
-                
-                const frontBlobData = await frontUploadResult.json();
-                const frontEmailBlobData = await frontEmailUploadResult.json();
-                const backPrintBlobData = await backPrintUploadResult.json();
-                const backEmailBlobData = await backEmailUploadResult.json();
+                // --- START: Upload images serially for better mobile compatibility ---
+                const uploadAndGetData = async (filename, blob) => {
+                    const response = await fetch(`/api/upload?filename=${filename}`, { method: 'POST', body: blob });
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Failed to upload ${filename}. Server responded with ${response.status}: ${errorText}`);
+                    }
+                    return response.json();
+                };
 
-                if (!frontUploadResult.ok || !frontEmailUploadResult.ok || !backPrintUploadResult.ok || !backEmailUploadResult.ok) {
-                    throw new Error('Failed to upload one or more images.');
-                }
+                const frontBlobData = await uploadAndGetData(frontFilename, frontBlob);
+                const frontEmailBlobData = await uploadAndGetData(frontEmailFilename, frontBlobForEmail);
+                const backPrintBlobData = await uploadAndGetData(backPrintFilename, backBlobForPrint);
+                const backEmailBlobData = await uploadAndGetData(backEmailFilename, backBlobForEmail);
+                // --- END: Upload images serially for better mobile compatibility ---
 
                 const recipient = {};
                 for (const key in dom.addressInputs) {
@@ -1127,7 +1144,6 @@
                 dom.sender.sendBtn.disabled = false;
                 grecaptcha.reset();
             }
-            
         }
 
         function debounce(func, delay) {
@@ -1420,7 +1436,6 @@
                     debouncedUpdateAllPreviews();
                 });
             });
-
             const otherBackControls = [dom.colorPicker, ...Object.values(dom.addressInputs)];
             otherBackControls.forEach(el => {
                 el.addEventListener('input', () => {
