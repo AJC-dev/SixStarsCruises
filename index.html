@@ -1078,7 +1078,7 @@
                 const backPrintFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-print-${timestamp}.jpg`;
                 const backEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-email-${timestamp}.jpg`;
 
-                // --- START: Upload images serially for better mobile compatibility ---
+                // --- START: Hybrid upload for optimized performance and reliability ---
                 const uploadAndGetData = async (filename, blob) => {
                     const response = await fetch(`/api/upload?filename=${filename}`, { method: 'POST', body: blob });
                     if (!response.ok) {
@@ -1088,11 +1088,16 @@
                     return response.json();
                 };
 
+                // Step 1: Upload small email images in parallel.
+                const [frontEmailBlobData, backEmailBlobData] = await Promise.all([
+                    uploadAndGetData(frontEmailFilename, frontBlobForEmail),
+                    uploadAndGetData(backEmailFilename, backBlobForEmail)
+                ]);
+
+                // Step 2: Upload large print images serially.
                 const frontBlobData = await uploadAndGetData(frontFilename, frontBlob);
-                const frontEmailBlobData = await uploadAndGetData(frontEmailFilename, frontBlobForEmail);
                 const backPrintBlobData = await uploadAndGetData(backPrintFilename, backBlobForPrint);
-                const backEmailBlobData = await uploadAndGetData(backEmailFilename, backBlobForEmail);
-                // --- END: Upload images serially for better mobile compatibility ---
+                // --- END: Hybrid upload for optimized performance and reliability ---
 
                 const recipient = {};
                 for (const key in dom.addressInputs) {
