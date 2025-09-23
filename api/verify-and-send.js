@@ -23,7 +23,9 @@ export default async function handler(request, response) {
 
         // Verify the token and extract the postcard data
         const postcardData = jwt.verify(token, jwtSecret);
-        const { sender, recipient, frontImageUrl, backImageUrl } = postcardData;
+        // Destructure all needed image URLs
+        const { sender, recipient, frontImageUrl, backImageUrl, frontImageUrlForEmail, backImageUrlWithAddress } = postcardData;
+
 
         // --- ZAP~POST API LOGIC ---
         const zapUsername = process.env.ZAPPOST_USERNAME;
@@ -79,27 +81,23 @@ export default async function handler(request, response) {
             throw new Error(`The print service returned an error.`);
         }
         
-        // --- SEND FINAL CONFIRMATION EMAIL ---
+        // --- SEND FINAL CONFIRMATION EMAIL (with new template) ---
         const emailHtml = `
-            <div style="font-family: sans-serif; line-height: 1.6;">
-                <h2>Thank you for sending a postcard!</h2>
-                <p>Hi ${sender.name},</p>
-                <p>Here's what you sent. We'll print and mail it to ${recipient.name} - it should land in the next few days.</p>
-                <hr>
-                <h3>Your Design:</h3>
-                <h4>Front:</h4>
-                <img src="${frontImageUrl}" alt="Postcard Front" style="max-width: 300px; border: 1px solid #ccc;"/>
-                <h4>Back:</h4>
-                <img src="${backImageUrl}" alt="Postcard Back" style="max-width: 300px; border: 1px solid #ccc;"/>
-                <hr style="margin-top: 20px;">
+            <div style="font-family: sans-serif; line-height: 1.6; text-align: center; max-width: 500px; margin: auto;">
+                <h2>Your postcard has been sent to ${recipient.name},</h2>
+                <p>It should arrive in the next few days.</p>
+                <div style="margin-top: 20px; display: flex; justify-content: center; align-items: center; flex-wrap: wrap;">
+                    <img src="${frontImageUrlForEmail}" alt="Postcard Front" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
+                    <img src="${backImageUrlWithAddress}" alt="Postcard Back" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
+                </div>
                 <div style="max-width: 300px; margin: 20px auto 0; text-align: center;">
-                    <a href="https://postcard-f9e4.vercel.app/?sendAgain=true" style="display: block; background-color: #0f61e6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">Send again, to someone else?</a>
-                    <a href="https://www.jet2.com/myjet2.aspx" target="_blank" style="display: block; background-color: #e82011; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">JOIN MYJET2</a>
+                    <a href="https://sixstarcruises.smilemail.app/?sendAgain=true" style="display: block; background-color: #b9965b; color: black; padding: 10px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">Send again, to someone else?</a>
+                    <a href="https://www.sixstarcruises.co.uk/" target="_blank" style="display: block; background-color: #062b3f; color: white; padding: 10px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">2026 Cruises - Spectacular Savings Event</a>
                 </div>
                 <div style="text-align: right; margin-top: 30px;">
                     <p style="margin: 0; font-size: 12px; color: #555;">Powered by</p>
                     <a href="https://zappost.com" target="_blank">
-                        <img src="https://postcard-f9e4.vercel.app/logo.png" alt="ZAP~POST Logo" style="width: 150px;"/>
+                        <img src="https://zappost.com/wp-content/uploads/2021/08/zappost-logo-new.png" alt="ZAP~POST Logo" style="width: 100px;"/>
                     </a>
                 </div>
             </div>
@@ -109,9 +107,9 @@ export default async function handler(request, response) {
             to: sender.email,
             from: {
                 email: process.env.SENDGRID_FROM_EMAIL,
-                name: "Jet2"
+                name: "SixStar Cruises"
             },
-            subject: 'Your Postcard Confirmation',
+            subject: `Your postcard to ${recipient.name} is on its way!`,
             html: emailHtml,
         };
 
