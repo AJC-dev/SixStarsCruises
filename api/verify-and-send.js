@@ -81,30 +81,30 @@ export default async function handler(request, response) {
         
         // --- SEND FINAL CONFIRMATION EMAIL ---
         const emailHtml = `
-            <div style="font-family: sans-serif; line-height: 1.6;">
-                <h2>Thank you for sending a postcard!</h2>
-                <p>Hi ${sender.name},</p>
-                <p>Here's what you sent. We'll print and mail it to ${recipient.name} - it should land in the next few days.</p>
-                <hr>
-                <h3>Your Design:</h3>
-                <h4>Front:</h4>
-                <img src="${frontImageUrl}" alt="Postcard Front" style="max-width: 300px; border: 1px solid #ccc;"/>
-                <h4>Back:</h4>
-                <img src="${backImageUrl}" alt="Postcard Back" style="max-width: 300px; border: 1px solid #ccc;"/>
-                <hr style="margin-top: 20px;">
+               <div style="font-family: sans-serif; line-height: 1.6; text-align: center; max-width: 500px; margin: auto;">
+                <h2>Your postcard has been sent to ${recipient.name},</h2>
+                <p>It should arrive in the next few days.</p>
+                
+                </div>
+                <div style="margin-top: 20px; display: flex; justify-content: center; align-items: center;">
+                    <img src="${frontImageUrlForEmail}" alt="Postcard Front" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
+                    <img src="${backImageUrlWithAddress}" alt="Postcard Back" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
+                </div>
+            </div>
                 <div style="max-width: 300px; margin: 20px auto 0; text-align: center;">
-                    <a href="https://sixstarcruises.smilemail.app/?sendAgain=true" style="display: block; background-color: #0f61e6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">Send again, to someone else?</a>
-                    <a href="https://www.sixstarcruises.co.uk/" target="_blank" style="display: block; background-color: #e82011; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">SixStarCruises</a>
+                    <a href="https://sixstarcruises.smilemail.app/?sendAgain=true" style="display: block; background-color: #b9965b; color: white; padding: 10px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">Send again, to someone else?</a>
+                    <a href="https://www.sixstarcruises.co.uk/" target="_blank" style="display: block; background-color: #062b3f; color: white; padding: 10px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">2026 Cruises - Spectacular Savings Event</a>
                 </div>
                 <div style="text-align: right; margin-top: 30px;">
                     <p style="margin: 0; font-size: 12px; color: #555;">Powered by</p>
                     <a href="https://zappost.com" target="_blank">
-                        <img src="https://sixstarcruises.smilemail.app/logo.png" alt="ZAP~POST Logo" style="width: 150px;"/>
+                        <img src="logo.png" alt="ZAP~POST Logo" style="width: 100px;"/>
                     </a>
                 </div>
             </div>
         `;
 
+        
         const msg = {
             to: sender.email,
             from: {
