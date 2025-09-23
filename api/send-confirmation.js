@@ -20,24 +20,20 @@ export default async function handler(request, response) {
         // Construct the HTML for the email
         const emailHtml = `
             <div style="font-family: sans-serif; line-height: 1.6;">
-                <h2>Thank you for sending a postcard!</h2>
-                <p>Hi ${sender.name},</p>
-                <p>Here's what you sent. We'll print and mail it to ${recipient.name} - it should land in the next few days.</p>
-                <hr>
-                <h3>Your Design:</h3>
-                <h4>Front:</h4>
-                <img src="${frontImageUrl}" alt="Postcard Front" style="max-width: 300px; border: 1px solid #ccc;"/>
-                <h4>Back:</h4>
-                <img src="${backImageUrl}" alt="Postcard Back" style="max-width: 300px; border: 1px solid #ccc;"/>
-                <hr style="margin-top: 20px;">
-                <div style="text-align: center; margin-top: 20px;">
-                    <a href="/?sendAgain=true" style="display: block; background-color: #22c55e; color: black; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">Send again, to someone else?</a>
-                    <a href="https://zappost.com" target="_blank" style="display: block; background-color: #22c55e; color: black; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Send 1000's like this</a>
+                <h2>Thank you ${sender.name}</h2>
+                <p>Here's what you sent to ${recipient.name} - it should land in the next few days.</p>
+                 <div style="margin-top: 20px; display: flex; justify-content: center; align-items: center;">
+                    <img src="${frontImageUrlForEmail}" alt="Postcard Front" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
+                    <img src="${backImageUrlWithAddress}" alt="Postcard Back" style="max-width: 200px; border: 1px solid #ccc; margin: 5px;"/>
+                </div>
+                
+                    <a href="/?sendAgain=true" style="display: block; background-color: #b9965b; color: black; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">Send again, to someone else?</a>
+                    <a href="https://www.sixstarcruises.co.uk/luxury-cruises-2026/" target="_blank" style="display: block; background-color: #062b3f; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">2026 Cruises - Spectacular Savings Event</a>
                 </div>
                 <div style="text-align: right; margin-top: 30px;">
                     <p style="margin: 0; font-size: 12px; color: #555;">Powered by</p>
                     <a href="https://zappost.com" target="_blank">
-                        <img src="https://postcard-f9e4.vercel.app/Logo.png" alt="ZAP~POST Logo" style="width: 150px;"/>
+                        <img src="Logo.png" alt="ZAP~POST Logo" style="width: 100px;"/>
                     </a>
                 </div>
             </div>
@@ -49,7 +45,7 @@ export default async function handler(request, response) {
                 email: process.env.SENDGRID_FROM_EMAIL,
                 name: "ZAP~POST - Free postcard"
             },
-            subject: 'Your Postcard Confirmation',
+            subject: 'Postcard sent to ${recipient.name}',
             html: emailHtml,
         };
 
