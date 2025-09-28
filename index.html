@@ -12,7 +12,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Caveat:wght@400;700&family=Dancing+Script:wght@400;700&family=Indie+Flower&family=Pacifico&family=Homemade+Apple&family=Gochi+Hand&family=Dawning+of+a+New+Day&display=swap" rel="stylesheet">
     <style>
-        body {
+        
+  body {
             font-family: 'Inter', sans-serif;
         }
         /* START: Enforce A5 aspect ratio for previews */
@@ -1040,7 +1041,11 @@
                     emailCtx.save();
                     emailCtx.translate(emailWidthPx / 2, emailHeightPx / 2);
                     emailCtx.rotate(90 * Math.PI / 180);
-                    emailCtx.drawImage(frontCanvas, -frontCanvas.width / 2, -frontCanvas.height / 2);
+                    // --- START: FIX for black bar ---
+                    // The arguments are swapped to correctly center the image on a rotated canvas.
+                    // The new X-offset is based on the image's height, and the new Y-offset is based on its width.
+                    emailCtx.drawImage(frontCanvas, -frontCanvas.height / 2, -frontCanvas.width / 2);
+                    // --- END: FIX for black bar ---
                     emailCtx.restore();
                 } else {
                     emailCtx.drawImage(frontCanvas, 0, 0);
