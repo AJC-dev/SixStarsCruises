@@ -1024,32 +1024,13 @@
             dom.sender.sendBtn.disabled = true;
         
             try {
-                // Generate high-resolution images for printing
-                const { frontCanvas, backCanvas: backCanvasForPrint } = await generatePostcardImages({ includeAddressOnImage: false, forPrint: true });
-                const { backCanvas: highResBackCanvasForEmail } = await generatePostcardImages({ includeAddressOnImage: true });
+                // --- START: FIX for black bar ---
+                // Generate high-resolution images for printing (front will be portrait if needed)
+                const { frontCanvas: frontCanvasForPrint, backCanvas: backCanvasForPrint } = await generatePostcardImages({ includeAddressOnImage: false, forPrint: true });
 
-                // Create a correctly rotated (if needed) high-res version of the front for email
-                const highResEmailFrontCanvas = document.createElement('canvas');
-                const MM_TO_INCH = 25.4;
-                const emailWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
-                const emailHeightPx = Math.round((config.a5HeightMM / MM_TO_INCH) * config.printDPI);
-
-                highResEmailFrontCanvas.width = emailWidthPx;
-                highResEmailFrontCanvas.height = emailHeightPx;
-                const emailCtx = highResEmailFrontCanvas.getContext('2d');
-                if (appState.isPortrait) {
-                    emailCtx.save();
-                    emailCtx.translate(emailWidthPx / 2, emailHeightPx / 2);
-                    emailCtx.rotate(90 * Math.PI / 180);
-                    // --- START: FIX for black bar ---
-                    // The arguments are swapped to correctly center the image on a rotated canvas.
-                    // The new X-offset is based on the image's height, and the new Y-offset is based on its width.
-                    emailCtx.drawImage(frontCanvas, -frontCanvas.height / 2, -frontCanvas.width / 2);
-                    // --- END: FIX for black bar ---
-                    emailCtx.restore();
-                } else {
-                    emailCtx.drawImage(frontCanvas, 0, 0);
-                }
+                // Generate high-resolution, correctly-oriented landscape images for the email preview
+                const { frontCanvas: highResEmailFrontCanvas, backCanvas: highResBackCanvasForEmail } = await generatePostcardImages({ includeAddressOnImage: true, forPrint: false });
+                // --- END: FIX for black bar ---
 
                 // --- START: Create LOW-RESOLUTION versions for email ---
                 const createLowResCanvas = (sourceCanvas, maxWidth = 800) => {
@@ -1069,7 +1050,7 @@
                 // --- END: Create LOW-RESOLUTION versions for email ---
 
                 // Create blobs from all image versions
-                const frontBlob = await new Promise(resolve => frontCanvas.toBlob(resolve, 'image/jpeg', 0.9));
+                const frontBlob = await new Promise(resolve => frontCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
                 const frontBlobForEmail = await new Promise(resolve => lowResFrontCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
                 const backBlobForPrint = await new Promise(resolve => backCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
                 const backBlobForEmail = await new Promise(resolve => lowResBackCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
