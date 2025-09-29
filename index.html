@@ -1076,15 +1076,9 @@
             dom.sender.sendBtn.disabled = true;
         
             try {
-                // --- START: FIX for black bar ---
-                // Generate high-resolution images for printing (front will be portrait if needed)
                 const { frontCanvas: frontCanvasForPrint, backCanvas: backCanvasForPrint } = await generatePostcardImages({ includeAddressOnImage: false, forPrint: true });
-
-                // Generate high-resolution, correctly-oriented landscape images for the email preview
                 const { frontCanvas: highResEmailFrontCanvas, backCanvas: highResBackCanvasForEmail } = await generatePostcardImages({ includeAddressOnImage: true, forPrint: false });
-                // --- END: FIX for black bar ---
-
-                // --- START: Create LOW-RESOLUTION versions for email ---
+                
                 const createLowResCanvas = (sourceCanvas, maxWidth = 800) => {
                     const scale = maxWidth / sourceCanvas.width;
                     const newWidth = sourceCanvas.width * scale;
@@ -1099,9 +1093,7 @@
 
                 const lowResFrontCanvasForEmail = createLowResCanvas(highResEmailFrontCanvas);
                 const lowResBackCanvasForEmail = createLowResCanvas(highResBackCanvasForEmail);
-                // --- END: Create LOW-RESOLUTION versions for email ---
 
-                // Create blobs from all image versions
                 const frontBlob = await new Promise(resolve => frontCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
                 const frontBlobForEmail = await new Promise(resolve => lowResFrontCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
                 const backBlobForPrint = await new Promise(resolve => backCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
@@ -1117,7 +1109,6 @@
                 const backPrintFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-print-${timestamp}.jpg`;
                 const backEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-email-${timestamp}.jpg`;
 
-                // --- START: Hybrid upload for optimized performance and reliability ---
                 const uploadAndGetData = async (filename, blob) => {
                     const response = await fetch(`/api/upload?filename=${filename}`, { method: 'POST', body: blob });
                     if (!response.ok) {
@@ -1127,16 +1118,13 @@
                     return response.json();
                 };
 
-                // Step 1: Upload small email images in parallel.
                 const [frontEmailBlobData, backEmailBlobData] = await Promise.all([
                     uploadAndGetData(frontEmailFilename, frontBlobForEmail),
                     uploadAndGetData(backEmailFilename, backBlobForEmail)
                 ]);
 
-                // Step 2: Upload large print images serially.
                 const frontBlobData = await uploadAndGetData(frontFilename, frontBlob);
                 const backPrintBlobData = await uploadAndGetData(backPrintFilename, backBlobForPrint);
-                // --- END: Hybrid upload for optimized performance and reliability ---
 
                 const recipient = {};
                 for (const key in dom.addressInputs) {
@@ -1174,7 +1162,16 @@
                 });
 
                 if (!verificationResponse.ok) {
-                    throw new Error('Failed to send verification email.');
+                    let serverError = 'Failed to send verification email. The service may be busy.';
+                    try {
+                        const errorData = await verificationResponse.json();
+                        if (errorData && errorData.error) {
+                            serverError = errorData.error;
+                        }
+                    } catch (e) {
+                        console.error("Could not parse error response from verification API.", e);
+                    }
+                    throw new Error(serverError);
                 }
                 
                 dom.sender.detailsView.style.display = 'none';
@@ -1183,17 +1180,8 @@
             } catch (error) {
                 console.error('An error occurred during the final send process:', error);
 
-                // --- START: Improved Error Handling ---
-                let userMessage = 'There was a problem sending your postcard. Please try again later.';
-                // Try to parse a more specific error message from the server response
-                if (error.message.includes('Failed to upload')) {
-                     userMessage = `There was a problem uploading your image. This can happen on an unstable connection. Please try again.`;
-                } else if (error.message.includes('verification email')) {
-                    userMessage = `Could not send the verification email. The service may be temporarily busy. Please try again in a few moments.`;
-                }
-
+                const userMessage = error.message || 'There was a problem sending your postcard. Please try again later.';
                 alert(userMessage);
-                // --- END: Improved Error Handling ---
 
                 btnText.style.display = 'inline';
                 loader.remove();
@@ -1520,3 +1508,4 @@
     </script>
 </body>
 </html>
+
