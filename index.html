@@ -604,7 +604,7 @@
             return {
                 size: {
                     x: x + (resizeHandleRelX * cos - resizeHandleRelY * sin),
-                    y: y + (resizeHandleRelX * sin + resizeHandleRelY * cos)
+                    y: y + (resizeHandleRelY * sin + resizeHandleRelY * cos)
                 },
                 rotate: {
                     x: x + (rotateHandleRelX * cos - rotateHandleRelY * sin),
@@ -846,21 +846,23 @@
             frontCanvas.height = frontCanvasHeight;
             const frontCtx = frontCanvas.getContext('2d');
             
+            // --- START: Text Position Fix ---
+            const previewCanvasForScaling = dom.previewCanvas.el;
+            const trimWidthPx = Math.round(((appState.isPortrait ? config.a5HeightMM : config.a5WidthMM) / MM_TO_INCH) * config.printDPI);
+            const scaleFactor = trimWidthPx / previewCanvasForScaling.width;
+
             if (appState.uploadedImage) {
-                if (!forPrint && appState.isPortrait) {
+                 if (!forPrint && appState.isPortrait) {
                     frontCtx.save();
                     frontCtx.translate(frontCanvasWidth / 2, frontCanvasHeight / 2);
                     frontCtx.rotate(90 * Math.PI / 180);
                     frontCtx.translate(-frontCanvasHeight / 2, -frontCanvasWidth / 2);
                     
-                    const scaleFactor = frontCanvasHeight / dom.previewCanvas.el.height;
-                    drawCleanFrontOnContext(frontCtx, frontCanvasHeight, frontCanvasWidth, scaleFactor, false);
+                    const rotatedScaleFactor = frontCanvasHeight / previewCanvasForScaling.height;
+                    drawCleanFrontOnContext(frontCtx, frontCanvasHeight, frontCanvasWidth, rotatedScaleFactor, false);
 
                     frontCtx.restore();
-                } else { 
-                    const previewCanvasForScaling = dom.previewCanvas.el;
-                    const trimWidthPx = Math.round(((appState.isPortrait ? config.a5HeightMM : config.a5WidthMM) / MM_TO_INCH) * config.printDPI);
-                    const scaleFactor = trimWidthPx / (appState.isPortrait ? previewCanvasForScaling.height : previewCanvasForScaling.width);
+                } else {
                     drawCleanFrontOnContext(frontCtx, frontCanvasWidth, frontCanvasHeight, scaleFactor, forPrint);
                 }
             } else {
@@ -869,6 +871,8 @@
                 frontCtx.textAlign = 'center';
                 frontCtx.fillText('Waiting for your masterpiece..', frontCanvasWidth / 2, frontCanvasHeight / 2);
             }
+            // --- END: Text Position Fix ---
+
 
             const backFinalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
             const backFinalHeightPx = Math.round((config.a5HeightMM / MM_TO_INCH) * config.printDPI);
@@ -1516,4 +1520,3 @@
     </script>
 </body>
 </html>
-
