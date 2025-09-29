@@ -13,7 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Caveat:wght@400;700&family=Dancing+Script:wght@400;700&family=Indie+Flower&family=Pacifico&family=Homemade+Apple&family=Gochi+Hand&family=Dawning+of+a+New+Day&display=swap" rel="stylesheet">
     <style>
         
-  body {
+        body {
             font-family: 'Inter', sans-serif;
         }
         /* START: Enforce A5 aspect ratio for previews */
@@ -786,13 +786,28 @@
             const MM_TO_INCH = 25.4;
             
             let isFinalPortraitForCanvas = appState.isPortrait;
-            // For the UI/email preview, if the image is portrait, we want to render it on a landscape canvas.
             if (!forPrint && appState.isPortrait) {
                 isFinalPortraitForCanvas = false;
             }
 
-            const finalWidthPx = Math.round((isFinalPortraitForCanvas ? config.a5HeightMM : config.a5WidthMM) / MM_TO_INCH) * config.printDPI;
-            const finalHeightPx = Math.round((isFinalPortraitForCanvas ? config.a5WidthMM : config.a5HeightMM) / MM_TO_INCH) * config.printDPI;
+            // --- START: FIX for A5 Aspect Ratio ---
+            // Define the A5 aspect ratio as a constant to ensure mathematical precision.
+            const A5_RATIO = config.a5WidthMM / config.a5HeightMM; 
+
+            let finalWidthPx, finalHeightPx;
+
+            // Calculate one dimension precisely, then derive the other from the ratio.
+            // This guarantees the canvas will have the perfect A5 aspect ratio.
+            if (isFinalPortraitForCanvas) {
+                // For portrait, height is the long edge.
+                finalHeightPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
+                finalWidthPx = Math.round(finalHeightPx / A5_RATIO);
+            } else {
+                // For landscape, width is the long edge.
+                finalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
+                finalHeightPx = Math.round(finalWidthPx / A5_RATIO);
+            }
+            // --- END: FIX for A5 Aspect Ratio ---
 
             const frontCanvas = document.createElement('canvas');
             frontCanvas.width = finalWidthPx;
