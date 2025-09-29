@@ -272,6 +272,8 @@
             printDPI: 300,
             a5WidthMM: 210,
             a5HeightMM: 148,
+            bleedMM: 3,
+            safetyMarginMM: 5, // From trim edge
             handleRadius: 8,
             maxFileSizeMB: 4
         };
@@ -418,7 +420,9 @@
             ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvasWidth, canvasHeight);
         }
 
-        function drawCleanFrontOnContext(ctx, width, height, scaleFactor) {
+        function drawCleanFrontOnContext(ctx, width, height, scaleFactor, forPrint) {
+            const MM_TO_INCH = 25.4;
+
             if (appState.uploadedImage) {
                 const scaledOffsetX = appState.imageOffsetX * scaleFactor;
                 const scaledOffsetY = appState.imageOffsetY * scaleFactor;
@@ -432,8 +436,14 @@
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
-                const textX = appState.isPortrait ? x * (height / dom.previewCanvas.el.height) : x * scaleFactor;
-                const textY = appState.isPortrait ? y * (width / dom.previewCanvas.el.width) : y * scaleFactor;
+                let textX = x * scaleFactor;
+                let textY = y * scaleFactor;
+
+                if (forPrint) {
+                    const bleedPx = Math.round((config.bleedMM / MM_TO_INCH) * config.printDPI);
+                    textX += bleedPx;
+                    textY += bleedPx;
+                }
 
                 ctx.translate(textX, textY);
                 ctx.rotate(rotation * Math.PI / 180);
@@ -490,6 +500,31 @@
                     ctx.fill();
                     ctx.stroke();
                 });
+            }
+
+            // Draw safety margin indicator
+            if (appState.uploadedImage) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 6]);
+
+                const cardWidthMM = appState.isPortrait ? config.a5HeightMM : config.a5WidthMM;
+                const cardHeightMM = appState.isPortrait ? config.a5WidthMM : config.a5HeightMM;
+                
+                const pixelsPerMMX = canvas.width / cardWidthMM;
+                const pixelsPerMMY = canvas.height / cardHeightMM;
+
+                const safetyMarginXPx = config.safetyMarginMM * pixelsPerMMX;
+                const safetyMarginYPx = config.safetyMarginMM * pixelsPerMMY;
+
+                ctx.strokeRect(
+                    safetyMarginXPx,
+                    safetyMarginYPx,
+                    canvas.width - 2 * safetyMarginXPx,
+                    canvas.height - 2 * safetyMarginYPx
+                );
+                ctx.restore();
             }
         }
 
@@ -784,57 +819,55 @@
             await document.fonts.ready; 
 
             const MM_TO_INCH = 25.4;
-            
-            let isFinalPortraitForCanvas = appState.isPortrait;
-            if (!forPrint && appState.isPortrait) {
-                isFinalPortraitForCanvas = false;
-            }
+            let frontCanvasWidth, frontCanvasHeight;
 
-            // --- START: FIX for A5 Aspect Ratio ---
-            // Define the A5 aspect ratio as a constant to ensure mathematical precision.
-            const A5_RATIO = config.a5WidthMM / config.a5HeightMM; 
-
-            let finalWidthPx, finalHeightPx;
-
-            // Calculate one dimension precisely, then derive the other from the ratio.
-            // This guarantees the canvas will have the perfect A5 aspect ratio.
-            if (isFinalPortraitForCanvas) {
-                // For portrait, height is the long edge.
-                finalHeightPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
-                finalWidthPx = Math.round(finalHeightPx / A5_RATIO);
+            if (forPrint) {
+                const printWidthMM = (appState.isPortrait ? config.a5HeightMM : config.a5WidthMM) + (config.bleedMM * 2);
+                const printHeightMM = (appState.isPortrait ? config.a5WidthMM : config.a5HeightMM) + (config.bleedMM * 2);
+                frontCanvasWidth = Math.round((printWidthMM / MM_TO_INCH) * config.printDPI);
+                frontCanvasHeight = Math.round((printHeightMM / MM_TO_INCH) * config.printDPI);
             } else {
-                // For landscape, width is the long edge.
-                finalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
-                finalHeightPx = Math.round(finalWidthPx / A5_RATIO);
+                const A5_RATIO = config.a5WidthMM / config.a5HeightMM;
+                let isFinalPortraitForCanvas = appState.isPortrait;
+                if (!forPrint && appState.isPortrait) {
+                    isFinalPortraitForCanvas = false;
+                }
+                if (isFinalPortraitForCanvas) {
+                    frontCanvasHeight = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
+                    frontCanvasWidth = Math.round(frontCanvasHeight / A5_RATIO);
+                } else {
+                    frontCanvasWidth = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
+                    frontCanvasHeight = Math.round(frontCanvasWidth / A5_RATIO);
+                }
             }
-            // --- END: FIX for A5 Aspect Ratio ---
 
             const frontCanvas = document.createElement('canvas');
-            frontCanvas.width = finalWidthPx;
-            frontCanvas.height = finalHeightPx;
+            frontCanvas.width = frontCanvasWidth;
+            frontCanvas.height = frontCanvasHeight;
             const frontCtx = frontCanvas.getContext('2d');
             
             if (appState.uploadedImage) {
-                // If this is a preview for a portrait image, rotate the context to draw it landscape.
                 if (!forPrint && appState.isPortrait) {
                     frontCtx.save();
-                    frontCtx.translate(finalWidthPx / 2, finalHeightPx / 2);
+                    frontCtx.translate(frontCanvasWidth / 2, frontCanvasHeight / 2);
                     frontCtx.rotate(90 * Math.PI / 180);
-                    frontCtx.translate(-finalHeightPx / 2, -finalWidthPx / 2); // new center is based on swapped dimensions
+                    frontCtx.translate(-frontCanvasHeight / 2, -frontCanvasWidth / 2);
                     
-                    const scaleFactor = finalHeightPx / dom.previewCanvas.el.height;
-                    drawCleanFrontOnContext(frontCtx, finalHeightPx, finalWidthPx, scaleFactor);
+                    const scaleFactor = frontCanvasHeight / dom.previewCanvas.el.height;
+                    drawCleanFrontOnContext(frontCtx, frontCanvasHeight, frontCanvasWidth, scaleFactor, false);
 
                     frontCtx.restore();
-                } else { // Original logic for landscape images or forPrint=true
-                    const scaleFactor = finalWidthPx / (appState.isPortrait ? dom.previewCanvas.el.height : dom.previewCanvas.el.width);
-                    drawCleanFrontOnContext(frontCtx, finalWidthPx, finalHeightPx, scaleFactor);
+                } else { 
+                    const previewCanvasForScaling = dom.previewCanvas.el;
+                    const trimWidthPx = Math.round(((appState.isPortrait ? config.a5HeightMM : config.a5WidthMM) / MM_TO_INCH) * config.printDPI);
+                    const scaleFactor = trimWidthPx / (appState.isPortrait ? previewCanvasForScaling.height : previewCanvasForScaling.width);
+                    drawCleanFrontOnContext(frontCtx, frontCanvasWidth, frontCanvasHeight, scaleFactor, forPrint);
                 }
             } else {
                 frontCtx.fillStyle = '#6b7280'; 
                 frontCtx.font = '80px Inter';
                 frontCtx.textAlign = 'center';
-                frontCtx.fillText('Waiting for your masterpiece..', finalWidthPx / 2, finalHeightPx / 2);
+                frontCtx.fillText('Waiting for your masterpiece..', frontCanvasWidth / 2, frontCanvasHeight / 2);
             }
 
             const backFinalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
@@ -1483,3 +1516,4 @@
     </script>
 </body>
 </html>
+
