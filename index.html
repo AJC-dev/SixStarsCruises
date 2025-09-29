@@ -231,6 +231,7 @@
             </div>
             <input type="text" id="sender-name" placeholder="Enter Name" class="p-2 border rounded-lg mt-4" required>
             <input type="email" id="sender-email" placeholder="Enter Email Address" class="p-2 border rounded-lg mt-2" required>
+            <p id="sender-error-message" class="text-red-500 text-sm mt-2 text-center hidden"></p>
             <div id="recaptcha-container" class="my-4 flex justify-center"></div>
             <button id="final-send-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2">
                 <span class="btn-text">Send</span>
@@ -342,7 +343,8 @@
                 emailInput: document.getElementById('sender-email'), 
                 sendBtn: document.getElementById('final-send-btn'), 
                 closeBtn: document.getElementById('close-sender-modal-btn'), 
-                recaptchaContainer: document.getElementById('recaptcha-container')
+                recaptchaContainer: document.getElementById('recaptcha-container'),
+                errorMessage: document.getElementById('sender-error-message')
             },
             search: { modal: document.getElementById('search-modal'), showBtn: document.getElementById('show-search-modal-btn'), closeBtn: document.getElementById('close-search-modal-btn'), input: document.getElementById('search-input'), searchBtn: document.getElementById('search-btn'), resultsContainer: document.getElementById('search-results'), loader: document.getElementById('search-loader') },
             zoom: { modal: document.getElementById('zoom-modal'), image: document.getElementById('zoomed-image'), closeBtn: document.getElementById('close-zoom-modal-btn')},
@@ -846,7 +848,6 @@
             frontCanvas.height = frontCanvasHeight;
             const frontCtx = frontCanvas.getContext('2d');
             
-            // --- START: Text Position Fix ---
             const previewCanvasForScaling = dom.previewCanvas.el;
             const trimWidthPx = Math.round(((appState.isPortrait ? config.a5HeightMM : config.a5WidthMM) / MM_TO_INCH) * config.printDPI);
             const scaleFactor = trimWidthPx / previewCanvasForScaling.width;
@@ -871,7 +872,6 @@
                 frontCtx.textAlign = 'center';
                 frontCtx.fillText('Waiting for your masterpiece..', frontCanvasWidth / 2, frontCanvasHeight / 2);
             }
-            // --- END: Text Position Fix ---
 
 
             const backFinalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
@@ -1074,6 +1074,7 @@
             loader.className = 'loader';
             dom.sender.sendBtn.prepend(loader);
             dom.sender.sendBtn.disabled = true;
+            dom.sender.errorMessage.classList.add('hidden');
         
             try {
                 const { frontCanvas: frontCanvasForPrint, backCanvas: backCanvasForPrint } = await generatePostcardImages({ includeAddressOnImage: false, forPrint: true });
@@ -1181,7 +1182,8 @@
                 console.error('An error occurred during the final send process:', error);
 
                 const userMessage = error.message || 'There was a problem sending your postcard. Please try again later.';
-                alert(userMessage);
+                dom.sender.errorMessage.textContent = userMessage;
+                dom.sender.errorMessage.classList.remove('hidden');
 
                 btnText.style.display = 'inline';
                 loader.remove();
