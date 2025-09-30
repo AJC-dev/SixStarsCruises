@@ -97,7 +97,7 @@ export default async function handler(request, response) {
                 <div style="text-align: right; margin-top: 30px;">
                     <p style="margin: 0; font-size: 12px; color: #555;">Powered by</p>
                     <a href="https://zappost.com" target="_blank">
-                        <img src="https://sixstarcruises.smilemail.app/logo.png" alt="ZAP~POST Logo" style="width: 100px;"/>
+                        <img src="https://sixstarcruises.smilemail.app/Logo.png" alt="ZAP~POST Logo" style="width: 100px;"/>
                     </a>
                 </div>
             </div>
