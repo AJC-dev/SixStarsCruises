@@ -229,9 +229,9 @@
                 <h3 class="text-xl font-bold">Your Details</h3>
                 <button id="close-sender-modal-btn">&times;</button>
             </div>
+            <p id="sender-error-message" class="text-red-500 text-sm mt-2 bg-red-50 p-3 rounded-lg hidden"></p>
             <input type="text" id="sender-name" placeholder="Enter Name" class="p-2 border rounded-lg mt-4" required>
             <input type="email" id="sender-email" placeholder="Enter Email Address" class="p-2 border rounded-lg mt-2" required>
-            <p id="sender-error-message" class="text-red-500 text-sm mt-2 text-center hidden"></p>
             <div id="recaptcha-container" class="my-4 flex justify-center"></div>
             <button id="final-send-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2">
                 <span class="btn-text">Send</span>
@@ -274,7 +274,6 @@
             a5WidthMM: 210,
             a5HeightMM: 148,
             bleedMM: 3,
-            safetyMarginMM: 5, // From trim edge
             handleRadius: 8,
             maxFileSizeMB: 4
         };
@@ -390,8 +389,11 @@
             }
         }
         
-        function drawCoverImage(ctx, img, canvasWidth, canvasHeight, offsetX, offsetY, zoom) {
-            const canvasAspect = canvasWidth / canvasHeight;
+        function drawCoverImage(ctx, img, canvasWidth, canvasHeight, offsetX, offsetY, zoom, bleedPx = 0) {
+            const safeCanvasWidth = canvasWidth - (bleedPx * 2);
+            const safeCanvasHeight = canvasHeight - (bleedPx * 2);
+
+            const canvasAspect = safeCanvasWidth / safeCanvasHeight;
             const imgAspect = img.width / img.height;
 
             let sWidth, sHeight;
@@ -406,29 +408,28 @@
 
             sWidth /= zoom;
             sHeight /= zoom;
-
-            let sx = (img.width - sWidth) / 2;
-            let sy = (img.height - sHeight) / 2;
-
-            const panScaleFactor = sWidth / canvasWidth;
-            sx -= offsetX * panScaleFactor;
-            sy -= offsetY * panScaleFactor;
             
-            const maxSx = img.width - sWidth;
-            const maxSy = img.height - sHeight;
-            sx = Math.max(0, Math.min(sx, maxSx));
-            sy = Math.max(0, Math.min(sy, maxSy));
+            let sx = (img.width - sWidth) / 2 - (offsetX * (sWidth / safeCanvasWidth));
+            let sy = (img.height - sHeight) / 2 - (offsetY * (sHeight / safeCanvasHeight));
 
-            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvasWidth, canvasHeight);
+            sx = Math.max(0, Math.min(sx, img.width - sWidth));
+            sy = Math.max(0, Math.min(sy, img.height - sHeight));
+            
+            // Adjust drawImage to fill the entire canvas including bleed
+            const extendedSWidth = sWidth * (canvasWidth / safeCanvasWidth);
+            const extendedSHeight = sHeight * (canvasHeight / safeCanvasHeight);
+            const extendedSx = sx - (extendedSWidth - sWidth) / 2;
+            const extendedSy = sy - (extendedSHeight - sHeight) / 2;
+
+
+            ctx.drawImage(img, extendedSx, extendedSy, extendedSWidth, extendedSHeight, 0, 0, canvasWidth, canvasHeight);
         }
 
-        function drawCleanFrontOnContext(ctx, width, height, scaleFactor, forPrint) {
-            const MM_TO_INCH = 25.4;
-
+        function drawCleanFrontOnContext(ctx, width, height, bleedPx) {
+            const scaleFactor = (width - bleedPx * 2) / (appState.isPortrait ? dom.previewCanvas.el.height : dom.previewCanvas.el.width);
+        
             if (appState.uploadedImage) {
-                const scaledOffsetX = appState.imageOffsetX * scaleFactor;
-                const scaledOffsetY = appState.imageOffsetY * scaleFactor;
-                drawCoverImage(ctx, appState.uploadedImage, width, height, scaledOffsetX, scaledOffsetY, appState.imageZoom);
+                drawCoverImage(ctx, appState.uploadedImage, width, height, appState.imageOffsetX, appState.imageOffsetY, appState.imageZoom, bleedPx);
             }
             
             if (appState.frontText.text) {
@@ -438,14 +439,11 @@
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
-                let textX = x * scaleFactor;
-                let textY = y * scaleFactor;
+                const rotatedCanvasWidth = appState.isPortrait ? dom.previewCanvas.el.height : dom.previewCanvas.el.width;
+                const rotatedCanvasHeight = appState.isPortrait ? dom.previewCanvas.el.width : dom.previewCanvas.el.height;
 
-                if (forPrint) {
-                    const bleedPx = Math.round((config.bleedMM / MM_TO_INCH) * config.printDPI);
-                    textX += bleedPx;
-                    textY += bleedPx;
-                }
+                const textX = (x / rotatedCanvasWidth) * (width - bleedPx * 2) + bleedPx;
+                const textY = (y / rotatedCanvasHeight) * (height - bleedPx * 2) + bleedPx;
 
                 ctx.translate(textX, textY);
                 ctx.rotate(rotation * Math.PI / 180);
@@ -457,11 +455,21 @@
         function drawPreviewCanvas() {
             const canvas = dom.previewCanvas.el;
             const ctx = canvas.getContext('2d');
+            const bleedPx = (config.bleedMM / config.a5WidthMM) * canvas.width;
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (appState.uploadedImage) {
-                drawCoverImage(ctx, appState.uploadedImage, canvas.width, canvas.height, appState.imageOffsetX, appState.imageOffsetY, appState.imageZoom);
+                drawCoverImage(ctx, appState.uploadedImage, canvas.width, canvas.height, appState.imageOffsetX, appState.imageOffsetY, appState.imageZoom, 0);
             }
+            
+            // Draw safety zone
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(bleedPx, bleedPx, canvas.width - 2 * bleedPx, canvas.height - 2 * bleedPx);
+            ctx.setLineDash([]);
+
 
             if (appState.frontText.text) {
                 if (appState.frontText.x === null) {
@@ -502,31 +510,6 @@
                     ctx.fill();
                     ctx.stroke();
                 });
-            }
-
-            // Draw safety margin indicator
-            if (appState.uploadedImage) {
-                ctx.save();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([6, 6]);
-
-                const cardWidthMM = appState.isPortrait ? config.a5HeightMM : config.a5WidthMM;
-                const cardHeightMM = appState.isPortrait ? config.a5WidthMM : config.a5HeightMM;
-                
-                const pixelsPerMMX = canvas.width / cardWidthMM;
-                const pixelsPerMMY = canvas.height / cardHeightMM;
-
-                const safetyMarginXPx = config.safetyMarginMM * pixelsPerMMX;
-                const safetyMarginYPx = config.safetyMarginMM * pixelsPerMMY;
-
-                ctx.strokeRect(
-                    safetyMarginXPx,
-                    safetyMarginYPx,
-                    canvas.width - 2 * safetyMarginXPx,
-                    canvas.height - 2 * safetyMarginYPx
-                );
-                ctx.restore();
             }
         }
 
@@ -606,7 +589,7 @@
             return {
                 size: {
                     x: x + (resizeHandleRelX * cos - resizeHandleRelY * sin),
-                    y: y + (resizeHandleRelY * sin + resizeHandleRelY * cos)
+                    y: y + (resizeHandleRelX * sin + resizeHandleRelY * cos)
                 },
                 rotate: {
                     x: x + (rotateHandleRelX * cos - rotateHandleRelY * sin),
@@ -791,7 +774,7 @@
             const messageText = dom.textInput.value;
             const lines = messageText.split('\n');
             let totalHeight = 0;
-            const messageMaxWidth = (finalWidthPx / 2) - 100;
+            const messageMaxWidth = ((finalWidthPx / 2) - 100) + 100; // Adjusted width
 
             lines.forEach(line => {
                 const words = line.split(' ');
@@ -821,58 +804,49 @@
             await document.fonts.ready; 
 
             const MM_TO_INCH = 25.4;
-            let frontCanvasWidth, frontCanvasHeight;
+            const bleedPxForPrint = forPrint ? Math.round((config.bleedMM / MM_TO_INCH) * config.printDPI) : 0;
+            
+            let isFinalPortraitForCanvas = appState.isPortrait;
+            if (!forPrint && appState.isPortrait) {
+                isFinalPortraitForCanvas = false;
+            }
 
-            if (forPrint) {
-                const printWidthMM = (appState.isPortrait ? config.a5HeightMM : config.a5WidthMM) + (config.bleedMM * 2);
-                const printHeightMM = (appState.isPortrait ? config.a5WidthMM : config.a5HeightMM) + (config.bleedMM * 2);
-                frontCanvasWidth = Math.round((printWidthMM / MM_TO_INCH) * config.printDPI);
-                frontCanvasHeight = Math.round((printHeightMM / MM_TO_INCH) * config.printDPI);
+            const A5_RATIO = config.a5WidthMM / config.a5HeightMM; 
+
+            let finalWidthPx, finalHeightPx;
+
+            if (isFinalPortraitForCanvas) {
+                finalHeightPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI) + (bleedPxForPrint * 2);
+                finalWidthPx = Math.round(finalHeightPx / A5_RATIO);
             } else {
-                const A5_RATIO = config.a5WidthMM / config.a5HeightMM;
-                let isFinalPortraitForCanvas = appState.isPortrait;
-                if (!forPrint && appState.isPortrait) {
-                    isFinalPortraitForCanvas = false;
-                }
-                if (isFinalPortraitForCanvas) {
-                    frontCanvasHeight = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
-                    frontCanvasWidth = Math.round(frontCanvasHeight / A5_RATIO);
-                } else {
-                    frontCanvasWidth = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
-                    frontCanvasHeight = Math.round(frontCanvasWidth / A5_RATIO);
-                }
+                finalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI) + (bleedPxForPrint * 2);
+                finalHeightPx = Math.round(finalWidthPx / A5_RATIO);
             }
 
             const frontCanvas = document.createElement('canvas');
-            frontCanvas.width = frontCanvasWidth;
-            frontCanvas.height = frontCanvasHeight;
+            frontCanvas.width = finalWidthPx;
+            frontCanvas.height = finalHeightPx;
             const frontCtx = frontCanvas.getContext('2d');
             
-            const previewCanvasForScaling = dom.previewCanvas.el;
-            const trimWidthPx = Math.round(((appState.isPortrait ? config.a5HeightMM : config.a5WidthMM) / MM_TO_INCH) * config.printDPI);
-            const scaleFactor = trimWidthPx / previewCanvasForScaling.width;
-
             if (appState.uploadedImage) {
-                 if (!forPrint && appState.isPortrait) {
+                if (!forPrint && appState.isPortrait) {
                     frontCtx.save();
-                    frontCtx.translate(frontCanvasWidth / 2, frontCanvasHeight / 2);
+                    frontCtx.translate(finalWidthPx / 2, finalHeightPx / 2);
                     frontCtx.rotate(90 * Math.PI / 180);
-                    frontCtx.translate(-frontCanvasHeight / 2, -frontCanvasWidth / 2);
+                    frontCtx.translate(-finalHeightPx / 2, -finalWidthPx / 2); 
                     
-                    const rotatedScaleFactor = frontCanvasHeight / previewCanvasForScaling.height;
-                    drawCleanFrontOnContext(frontCtx, frontCanvasHeight, frontCanvasWidth, rotatedScaleFactor, false);
+                    drawCleanFrontOnContext(frontCtx, finalHeightPx, finalWidthPx, 0);
 
                     frontCtx.restore();
                 } else {
-                    drawCleanFrontOnContext(frontCtx, frontCanvasWidth, frontCanvasHeight, scaleFactor, forPrint);
+                    drawCleanFrontOnContext(frontCtx, finalWidthPx, finalHeightPx, bleedPxForPrint);
                 }
             } else {
                 frontCtx.fillStyle = '#6b7280'; 
                 frontCtx.font = '80px Inter';
                 frontCtx.textAlign = 'center';
-                frontCtx.fillText('Waiting for your masterpiece..', frontCanvasWidth / 2, frontCanvasHeight / 2);
+                frontCtx.fillText('Waiting for your masterpiece..', finalWidthPx / 2, finalHeightPx / 2);
             }
-
 
             const backFinalWidthPx = Math.round((config.a5WidthMM / MM_TO_INCH) * config.printDPI);
             const backFinalHeightPx = Math.round((config.a5HeightMM / MM_TO_INCH) * config.printDPI);
@@ -883,11 +857,13 @@
             backCtx.fillStyle = 'white';
             backCtx.fillRect(0, 0, backFinalWidthPx, backFinalHeightPx);
             
+            const dividerX = (backFinalWidthPx / 2) + 100;
+
             backCtx.strokeStyle = '#e5e7eb';
             backCtx.lineWidth = 5;
             backCtx.beginPath();
-            backCtx.moveTo(backFinalWidthPx / 2, 50);
-            backCtx.lineTo(backFinalWidthPx / 2, backFinalHeightPx - 50);
+            backCtx.moveTo(dividerX, 50);
+            backCtx.lineTo(dividerX, backFinalHeightPx - 50);
             backCtx.stroke();
 
             backCtx.strokeStyle = '#cccccc';
@@ -907,9 +883,9 @@
 
             const messageText = dom.textInput.value;
             const lines = messageText.split('\n');
-            const messageX = 50;
+            const messageX = 50 + 20; // Added 20px nudge
             let messageY = hiResFontSize * 1.2;
-            const messageMaxWidth = (backFinalWidthPx / 2) - 100;
+            const messageMaxWidth = dividerX - messageX - 20; // Use divider as the right boundary
             const lineHeight = hiResFontSize * 1.2;
 
             lines.forEach(line => {
@@ -938,7 +914,7 @@
                 
                 const addressLines = [dom.addressInputs.name.value, dom.addressInputs.line1.value, dom.addressInputs.line2.value, dom.addressInputs.city.value, dom.addressInputs.postcode.value].filter(Boolean);
                 const addressBlockHeight = addressLines.length * hiResAddressFontSize * 1.4;
-                const addressX = (backFinalWidthPx / 2) + 65; 
+                const addressX = dividerX + 45; 
                 let addressY = (backFinalHeightPx / 2) - (addressBlockHeight / 2);
 
                 addressLines.forEach(line => {
@@ -1078,8 +1054,9 @@
         
             try {
                 const { frontCanvas: frontCanvasForPrint, backCanvas: backCanvasForPrint } = await generatePostcardImages({ includeAddressOnImage: false, forPrint: true });
+
                 const { frontCanvas: highResEmailFrontCanvas, backCanvas: highResBackCanvasForEmail } = await generatePostcardImages({ includeAddressOnImage: true, forPrint: false });
-                
+
                 const createLowResCanvas = (sourceCanvas, maxWidth = 800) => {
                     const scale = maxWidth / sourceCanvas.width;
                     const newWidth = sourceCanvas.width * scale;
@@ -1163,14 +1140,14 @@
                 });
 
                 if (!verificationResponse.ok) {
-                    let serverError = 'Failed to send verification email. The service may be busy.';
+                    let serverError = 'Failed to send verification email.';
                     try {
                         const errorData = await verificationResponse.json();
                         if (errorData && errorData.error) {
                             serverError = errorData.error;
                         }
                     } catch (e) {
-                        console.error("Could not parse error response from verification API.", e);
+                         console.warn("Could not parse JSON error from server.");
                     }
                     throw new Error(serverError);
                 }
@@ -1180,9 +1157,8 @@
         
             } catch (error) {
                 console.error('An error occurred during the final send process:', error);
-
-                const userMessage = error.message || 'There was a problem sending your postcard. Please try again later.';
-                dom.sender.errorMessage.textContent = userMessage;
+                
+                dom.sender.errorMessage.textContent = error.message;
                 dom.sender.errorMessage.classList.remove('hidden');
 
                 btnText.style.display = 'inline';
@@ -1510,4 +1486,3 @@
     </script>
 </body>
 </html>
-
